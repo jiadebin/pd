@@ -334,3 +334,15 @@ func TestMultiTargetTransferExcludesUnsupportedReaders(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, []uint64{2}, transfer.ToStores)
 }
+
+func TestDedicatedGroupRejectsPreOwnerProtocolAtDispatch(t *testing.T) {
+	cluster, region, controller, streams := newRecoveryOperatorCluster(t)
+	cluster.PutStore(cluster.GetStore(1).Clone(core.SetStoreLogOnlyProtocolVersion(2)))
+	_, err := CreateAddPeerOperator("pre-owner-full", cluster, region, &metapb.Peer{StoreId: 4}, OpReplica)
+	require.ErrorContains(t, err, "protocol")
+	step := AddLearner{ToStore: 4, PeerID: 40}
+	op := NewTestOperator(region.GetID(), region.GetRegionEpoch(), OpAdmin, step)
+	require.False(t, controller.AddOperator(op))
+	controller.SendScheduleCommand(region, step, DispatchFromNotifierQueue)
+	require.Zero(t, streams.MsgLength())
+}

@@ -45,8 +45,12 @@ Initialization learners retain their Full/LogOnly capability when promoted.
 
 ## Recovery protocol and rollout
 
-Protocol v2 uses the independent `metapb.Store.log_only_protocol_version` field.
-The immutable Full/LogOnly role label does not advertise software compatibility.
+Protocol v3 uses the independent `metapb.Store.log_only_protocol_version` field
+and certifies TiKV finite, physically prepaid drain-owner admission. Protocol v2
+readers do not certify this newer path. The immutable Full/LogOnly role label
+does not advertise software compatibility. Dedicated TiKV Stores upgrade their
+persisted fixed-role format before registration so older binaries fail before
+peer recovery, even if PD is unavailable.
 
 `GetMembers` asserts only the responding PD member's runtime version. For each
 `GetClusterInfo` capability round, PD reads fresh etcd membership, probes all
@@ -63,10 +67,12 @@ new dedicated W groups.
 
 Activating or extending a dedicated LogOnly group requires compatible retained
 members and destinations, including data learners. Old TiFlash/reader processes
-without a v2 declaration are not automatically certified by being non-voters.
+without a v3 declaration are not automatically certified by being non-voters.
 Legacy groups keep their existing behavior. Cleanup, leaving joint state and
-removing W to return to a Full-only group remain available. A Store identity that declared protocol v2 keeps that minimum (including data
-readers) even after returning to 3F: topology
+removing W to return to a Full-only group remain available. Every positive Store
+protocol declaration is monotonic, including a retained v2 reader floor during
+a v3 upgrade and future higher floors. A Store keeps its declared minimum
+(including data readers) even after returning to 3F: topology
 rollback does not prove that old readers can consume persisted DFS object copies.
 Software/reader rollback requires a separate controlled migration or replacement
 procedure, not clearing the protocol declaration.

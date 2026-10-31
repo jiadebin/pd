@@ -84,3 +84,24 @@ func TestDeclaredProtocolCannotDowngradeAfterLeavingWitnessGroup(t *testing.T) {
 	// Returning to 3F cannot prove that old readers understand persistent DFS copies.
 	require.ErrorContains(t, c.PutMetaStore(downgraded), "cannot downgrade a declared LogOnly protocol")
 }
+
+func TestStoreProtocolUpgradePreservesEveryDeclaredMinimum(t *testing.T) {
+	_, opt, err := newTestScheduleConfig()
+	require.NoError(t, err)
+	c := newTestRaftCluster(t.Context(), mockid.NewIDAllocator(), opt, storage.NewStorageWithMemoryBackend())
+	meta := newTestStores(1, "6.6.0")[0].GetMeta()
+	require.NoError(t, c.PutMetaStore(meta))
+	for _, version := range []uint32{2, core.LogOnlyProtocolVersion, core.LogOnlyProtocolVersion + 1} {
+		meta = proto.Clone(meta).(*metapb.Store)
+		meta.LogOnlyProtocolVersion = version
+		require.NoError(t, c.PutMetaStore(meta))
+		// A protocol upgrade must not forget either the v2 reader floor or a
+		// newer floor after the last W has left the Store's Regions.
+		for downgrade := uint32(0); downgrade < version; downgrade++ {
+			candidate := proto.Clone(meta).(*metapb.Store)
+			candidate.LogOnlyProtocolVersion = downgrade
+			require.ErrorContains(t, c.PutMetaStore(candidate), "cannot downgrade a declared LogOnly protocol")
+			require.Equal(t, version, c.GetStore(meta.GetId()).GetMeta().GetLogOnlyProtocolVersion())
+		}
+	}
+}

@@ -140,3 +140,18 @@ func TestPDMemberProtocolMinimumIncludesFutureLeaders(t *testing.T) {
 		require.Zero(t, version)
 	}
 }
+
+func TestPDMemberProtocolDoesNotCertifyPreOwnerMembers(t *testing.T) {
+	members := capabilityTestMembers(1, 2, 3)
+	loader := func(context.Context) ([]*pdpb.Member, error) { return members, nil }
+	oldest := uint32(2)
+	probe := func(_ context.Context, member *pdpb.Member) (uint32, error) {
+		if member.GetMemberId() == 3 {
+			return oldest, nil
+		}
+		return core.LogOnlyProtocolVersion, nil
+	}
+	require.Equal(t, uint32(2), negotiatePDMemberProtocol(t.Context(), 1, loader, probe))
+	oldest = core.LogOnlyProtocolVersion
+	require.Equal(t, core.LogOnlyProtocolVersion, negotiatePDMemberProtocol(t.Context(), 1, loader, probe))
+}

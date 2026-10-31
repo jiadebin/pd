@@ -38,7 +38,7 @@ func TestLogOnlyProtocolVersionFollowsSchedulingPrimary(t *testing.T) {
 	s.cluster.SetServiceIndependent(mcs.SchedulingServiceName)
 	require.Zero(t, s.getLogOnlyProtocolVersion())
 	s.servicePrimaryMap.Store(mcs.SchedulingServiceName, "http://primary")
-	for _, version := range []uint32{0, 1, 2, 3} {
+	for version := uint32(0); version <= core.LogOnlyProtocolVersion+1; version++ {
 		s.schedulingPrimaryCapability.Store(&schedulingpb.Participant{ListenUrls: []string{"http://primary"}, LogOnlyProtocolVersion: version})
 		require.Equal(t, min(core.LogOnlyProtocolVersion, version), s.getLogOnlyProtocolVersion())
 	}

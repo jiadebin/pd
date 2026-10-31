@@ -62,14 +62,27 @@ func TestDedicatedLogOnlyActivationRequiresEveryMemberProtocol(t *testing.T) {
 	}
 	peers := []*metapb.Peer{{Id: 1, StoreId: 1}, {Id: 2, StoreId: 2}, {Id: 3, StoreId: 3, IsWitness: true}}
 	require.NoError(t, CheckLogOnlyPeerProtocols(cluster, peers, 0))
+	// Neither an old Full nor an old W can activate physical owner admission.
+	for _, id := range []uint64{1, 3} {
+		for version := uint32(0); version < LogOnlyProtocolVersion; version++ {
+			cluster.PutStore(cluster.GetStore(id).Clone(SetStoreLogOnlyProtocolVersion(version)))
+			require.ErrorContains(t, CheckLogOnlyPeerProtocols(cluster, peers, 0), "protocol")
+		}
+		cluster.PutStore(cluster.GetStore(id).Clone(SetStoreLogOnlyProtocolVersion(LogOnlyProtocolVersion)))
+	}
 	cluster.PutStore(cluster.GetStore(1).Clone(SetStoreLogOnlyProtocolVersion(0)))
 	require.ErrorContains(t, CheckLogOnlyPeerProtocols(cluster, peers, 0), "store 1")
-	// Returning to an ordinary Full group does not require legacy Stores to v2.
+	// An ordinary Full group without a reader floor does not require an upgrade.
 	require.NoError(t, CheckLogOnlyPeerProtocols(cluster, peers[:2], 0))
 	cluster.PutStore(cluster.GetStore(1).Clone(SetStoreLogOnlyProtocolVersion(LogOnlyProtocolVersion)))
 	cluster.PutStore(cluster.GetStore(4).Clone(SetStoreLogOnlyProtocolVersion(0)))
 	withReader := append(peers, &metapb.Peer{Id: 4, StoreId: 4, Role: metapb.PeerRole_Learner})
-	require.ErrorContains(t, CheckLogOnlyPeerProtocols(cluster, withReader, 0), "store 4")
+	for version := uint32(0); version < LogOnlyProtocolVersion; version++ {
+		cluster.PutStore(cluster.GetStore(4).Clone(SetStoreLogOnlyProtocolVersion(version)))
+		require.ErrorContains(t, CheckLogOnlyPeerProtocols(cluster, withReader, 0), "store 4")
+	}
+	cluster.PutStore(cluster.GetStore(4).Clone(SetStoreLogOnlyProtocolVersion(LogOnlyProtocolVersion)))
+	require.NoError(t, CheckLogOnlyPeerProtocols(cluster, withReader, 0))
 }
 
 func TestFullOnlyGroupUsesDurableReaderProtocolFloor(t *testing.T) {
@@ -78,9 +91,10 @@ func TestFullOnlyGroupUsesDurableReaderProtocolFloor(t *testing.T) {
 	for _, peer := range peers {
 		cluster.PutStore(NewStoreInfo(&metapb.Store{Id: peer.StoreId, LogOnlyProtocolVersion: LogOnlyProtocolVersion}))
 	}
-	region := NewRegionInfo(&metapb.Region{Id: 1, Peers: peers}, peers[0], WithRecoveryStatus(&pdpb.RegionRecoveryStatus{RequiredReaderProtocolVersion: 3}))
-	require.Equal(t, uint32(3), RequiredPeerProtocolVersion(cluster, region))
-	require.ErrorContains(t, CheckLogOnlyPeerProtocols(cluster, peers, 3), "protocol 3")
+	future := LogOnlyProtocolVersion + 1
+	region := NewRegionInfo(&metapb.Region{Id: 1, Peers: peers}, peers[0], WithRecoveryStatus(&pdpb.RegionRecoveryStatus{RequiredReaderProtocolVersion: future}))
+	require.Equal(t, future, RequiredPeerProtocolVersion(cluster, region))
+	require.ErrorContains(t, CheckLogOnlyPeerProtocols(cluster, peers, future), "protocol")
 	require.NoError(t, CheckLogOnlyPeerProtocols(cluster, peers, 2))
 	cluster.PutStore(cluster.GetStore(3).Clone(SetStoreLogOnlyProtocolVersion(0)))
 	require.ErrorContains(t, CheckLogOnlyPeerProtocols(cluster, peers, 2), "store 3")

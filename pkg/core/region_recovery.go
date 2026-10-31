@@ -21,7 +21,8 @@ import (
 )
 
 // LogOnlyProtocolVersion is the supported LogOnly peer recovery protocol.
-const LogOnlyProtocolVersion uint32 = 2
+// Version 3 requires TiKV finite, physically prepaid drain-owner admission.
+const LogOnlyProtocolVersion uint32 = 3
 
 // GetRecoveryStatus returns the leader's explicit, term-bound recovery report.
 // A nil report retains legacy behavior unless the Store declares protocol v2.
