@@ -64,7 +64,7 @@ func TestDedicatedLogOnlyActivationRequiresEveryMemberProtocol(t *testing.T) {
 	require.NoError(t, CheckLogOnlyPeerProtocols(cluster, peers, 0))
 	// Neither an old Full nor an old W can activate physical owner admission.
 	for _, id := range []uint64{1, 3} {
-		for version := uint32(0); version < LogOnlyProtocolVersion; version++ {
+		for version := range LogOnlyProtocolVersion {
 			cluster.PutStore(cluster.GetStore(id).Clone(SetStoreLogOnlyProtocolVersion(version)))
 			require.ErrorContains(t, CheckLogOnlyPeerProtocols(cluster, peers, 0), "protocol")
 		}
@@ -77,7 +77,7 @@ func TestDedicatedLogOnlyActivationRequiresEveryMemberProtocol(t *testing.T) {
 	cluster.PutStore(cluster.GetStore(1).Clone(SetStoreLogOnlyProtocolVersion(LogOnlyProtocolVersion)))
 	cluster.PutStore(cluster.GetStore(4).Clone(SetStoreLogOnlyProtocolVersion(0)))
 	withReader := append(peers, &metapb.Peer{Id: 4, StoreId: 4, Role: metapb.PeerRole_Learner})
-	for version := uint32(0); version < LogOnlyProtocolVersion; version++ {
+	for version := range LogOnlyProtocolVersion {
 		cluster.PutStore(cluster.GetStore(4).Clone(SetStoreLogOnlyProtocolVersion(version)))
 		require.ErrorContains(t, CheckLogOnlyPeerProtocols(cluster, withReader, 0), "store 4")
 	}

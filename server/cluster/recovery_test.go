@@ -97,7 +97,7 @@ func TestStoreProtocolUpgradePreservesEveryDeclaredMinimum(t *testing.T) {
 		require.NoError(t, c.PutMetaStore(meta))
 		// A protocol upgrade must not forget either the v2 reader floor or a
 		// newer floor after the last W has left the Store's Regions.
-		for downgrade := uint32(0); downgrade < version; downgrade++ {
+		for downgrade := range version {
 			candidate := proto.Clone(meta).(*metapb.Store)
 			candidate.LogOnlyProtocolVersion = downgrade
 			require.ErrorContains(t, c.PutMetaStore(candidate), "cannot downgrade a declared LogOnly protocol")
